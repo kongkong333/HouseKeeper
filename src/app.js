@@ -748,6 +748,16 @@
     };
   }
 
+  function snapTodayMenuFabToEdge(x, y, width, height) {
+    const clamped = clampTodayMenuFabPosition(x, y, width, height);
+    const margin = 8;
+    const centerX = clamped.x + width / 2;
+    return {
+      ...clamped,
+      x: centerX < window.innerWidth / 2 ? margin : Math.max(margin, window.innerWidth - width - margin),
+    };
+  }
+
   function openTodayMenuDrawer() {
     document.body.insertAdjacentHTML("beforeend", `
       <div class="drawer-backdrop center-backdrop">
@@ -1361,7 +1371,11 @@
     state.fab.classList.remove("dragging");
     if (state.dragging) {
       const rect = state.fab.getBoundingClientRect();
-      const position = clampTodayMenuFabPosition(rect.left, rect.top, rect.width, rect.height);
+      const position = snapTodayMenuFabToEdge(rect.left, rect.top, rect.width, rect.height);
+      state.fab.style.left = `${position.x}px`;
+      state.fab.style.top = `${position.y}px`;
+      state.fab.style.right = "auto";
+      state.fab.style.bottom = "auto";
       saveTodayMenuFabPosition(position);
       todayMenuFabSuppressClick = true;
       window.setTimeout(() => {

@@ -1,10 +1,10 @@
-const CACHE_NAME = "housekeeper-pwa-v32";
+const CACHE_NAME = "housekeeper-pwa-v33";
 const ASSETS = [
   "./",
   "./index.html",
-  "./src/styles.css?v=32",
+  "./src/styles.css?v=33",
   "./src/supabase-config.js?v=17",
-  "./src/app.js?v=32",
+  "./src/app.js?v=33",
   "./manifest.webmanifest",
   "./public/icon.svg",
   "./public/icon-maskable.svg"

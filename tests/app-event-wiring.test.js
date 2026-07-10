@@ -202,6 +202,8 @@ assert(
     source.includes("loadTodayMenuFabPosition") &&
     source.includes("saveTodayMenuFabPosition") &&
     source.includes("clampTodayMenuFabPosition") &&
+    source.includes("snapTodayMenuFabToEdge") &&
+    source.includes("centerX < window.innerWidth / 2") &&
     source.includes("todayMenuFabDragState") &&
     source.includes('document.addEventListener("pointerdown"') &&
     source.includes('document.addEventListener("pointermove"') &&
@@ -276,7 +278,7 @@ const appVersion = html.match(/src\/app\.js\?v=(\d+)/)?.[1];
 const styleVersion = html.match(/src\/styles\.css\?v=(\d+)/)?.[1];
 const cacheVersion = serviceWorker.match(/housekeeper-pwa-v(\d+)/)?.[1];
 assert(
-  appVersion === "32" && styleVersion === appVersion && cacheVersion === appVersion,
+  appVersion === "33" && styleVersion === appVersion && cacheVersion === appVersion,
   "home summary release should bump app, style, and service worker cache versions together"
 );
 
