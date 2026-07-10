@@ -91,12 +91,16 @@ assert(
     source.includes("soreThroat") &&
     source.includes("cough") &&
     source.includes("fever") &&
+    source.includes("otherDiscomfort") &&
+    source.includes("其他不适") &&
     source.includes("buildMenuRecommendationPayload(ingredients, menuPreferences)") &&
     recommendMenuFunction.includes("preferences") &&
     recommendMenuFunction.includes("soreThroat") &&
     recommendMenuFunction.includes("cough") &&
-    recommendMenuFunction.includes("fever"),
-  "AI menu recommendations should send taste preferences and symptom notes to the model"
+    recommendMenuFunction.includes("fever") &&
+    recommendMenuFunction.includes("otherDiscomfort") &&
+    recommendMenuFunction.includes("不适症状"),
+  "AI menu recommendations should send taste preferences and combined symptom notes to the model"
 );
 
 assert(

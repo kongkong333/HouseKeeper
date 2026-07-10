@@ -26,8 +26,11 @@ assert(
     source.includes("cleanMenuPreferences") &&
     source.includes("soreThroat") &&
     source.includes("cough") &&
-    source.includes("fever"),
-  "dev server should forward taste preferences and symptom notes into Ark menu prompts"
+    source.includes("fever") &&
+    source.includes("otherDiscomfort") &&
+    source.includes("discomfortSymptoms") &&
+    source.includes("不适症状"),
+  "dev server should forward taste preferences and combined symptom notes into Ark menu prompts"
 );
 
 assert(

@@ -15,6 +15,7 @@ type Ingredient = {
 
 type MenuPreferences = {
   taste?: string;
+  otherDiscomfort?: string;
   symptoms?: {
     soreThroat?: boolean;
     cough?: boolean;
@@ -49,13 +50,21 @@ function cleanIngredients(value: unknown) {
 
 function cleanMenuPreferences(value: MenuPreferences | undefined) {
   const symptoms = value?.symptoms || {};
+  const symptomNames = [
+    symptoms.soreThroat ? "喉咙痛" : "",
+    symptoms.cough ? "咳嗽" : "",
+    symptoms.fever ? "发烧" : "",
+    String(value?.otherDiscomfort || "").trim().slice(0, 120),
+  ].filter(Boolean);
   return {
     taste: String(value?.taste || "").trim().slice(0, 120),
+    otherDiscomfort: String(value?.otherDiscomfort || "").trim().slice(0, 120),
     symptoms: {
       soreThroat: Boolean(symptoms.soreThroat),
       cough: Boolean(symptoms.cough),
       fever: Boolean(symptoms.fever),
     },
+    discomfortSymptoms: symptomNames.join("、"),
   };
 }
 
@@ -76,6 +85,7 @@ function buildArkPayload(ingredients: ReturnType<typeof cleanIngredients>, prefe
           "请返回严格 JSON，不要使用 Markdown。",
           "JSON 结构为：{\"dishes\":[{\"name\":\"菜名\",\"ingredients\":[\"材料\"],\"notes\":\"简短做法或提示\"}],\"healthyCombo\":{\"dishes\":[\"菜名\"],\"reason\":\"理由\"}}。",
           `厨房材料：${JSON.stringify(ingredients)}`,
+          `不适症状：${cleanPreferences.discomfortSymptoms || "无"}`,
           `用户备注：${JSON.stringify(cleanPreferences)}`,
         ].join("\n"),
       },

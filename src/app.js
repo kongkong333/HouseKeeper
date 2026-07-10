@@ -20,7 +20,7 @@
   let syncStatus = "";
   let menuStatus = "";
   let menuResult = null;
-  let menuPreferences = { taste: "", symptoms: { soreThroat: false, cough: false, fever: false } };
+  let menuPreferences = { taste: "", otherDiscomfort: "", symptoms: { soreThroat: false, cough: false, fever: false } };
   let cloudSaveTimer = 0;
   let reminderTimer = 0;
   const notifiedReminderOccurrences = new Set();
@@ -142,6 +142,7 @@
     const symptoms = preferences?.symptoms || {};
     return {
       taste: String(preferences?.taste || "").trim().slice(0, 120),
+      otherDiscomfort: String(preferences?.otherDiscomfort || "").trim().slice(0, 120),
       symptoms: {
         soreThroat: Boolean(symptoms.soreThroat),
         cough: Boolean(symptoms.cough),
@@ -620,6 +621,10 @@
             <label><input type="checkbox" data-action="menu-symptom" data-symptom="cough" ${menuPreferences.symptoms.cough ? "checked" : ""} ${menuStatus === "loading" ? "disabled" : ""}> 咳嗽</label>
             <label><input type="checkbox" data-action="menu-symptom" data-symptom="fever" ${menuPreferences.symptoms.fever ? "checked" : ""} ${menuStatus === "loading" ? "disabled" : ""}> 发烧</label>
           </div>
+          <label class="preference-field">
+            <span>其他不适</span>
+            <input type="text" data-action="menu-other-discomfort" placeholder="其他不适" value="${escapeHtml(menuPreferences.otherDiscomfort)}" ${menuStatus === "loading" ? "disabled" : ""}>
+          </label>
         </div>
         <p class="note">开发环境通过本地开发代理请求；线上优先使用 Supabase 安全代理。</p>
         <button class="btn menu-action" data-action="recommend-menu" ${menuStatus === "loading" ? "disabled" : ""}>${menuStatus === "loading" ? "推荐中..." : "AI智能菜单推荐"}</button>
@@ -1242,6 +1247,9 @@
     }
     if (event.target.dataset.action === "menu-preference") {
       menuPreferences = cleanMenuPreferences({ ...menuPreferences, taste: event.target.value });
+    }
+    if (event.target.dataset.action === "menu-other-discomfort") {
+      menuPreferences = cleanMenuPreferences({ ...menuPreferences, otherDiscomfort: event.target.value });
     }
   });
 
