@@ -206,13 +206,6 @@ h3 {
   margin: 18px 0;
 }
 
-.scrollable-section .card-list {
-  max-height: 260px;
-  padding-right: 4px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
 .section-head {
   display: flex;
   align-items: center;
@@ -223,6 +216,27 @@ h3 {
 
 .section-head h2 {
   margin: 0;
+}
+
+.section-link,
+.home-more {
+  min-height: 34px;
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.section-link {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+}
+
+.home-more {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 12px;
 }
 
 .card-list {
@@ -287,6 +301,31 @@ h3 {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+
+.item-card .actions {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.item-card .actions::-webkit-scrollbar {
+  display: none;
+}
+
+.item-card .actions .btn {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.item-card .actions .btn.icon {
+  width: 34px;
+  padding: 0;
+  font-size: 16px;
 }
 
 .btn {
@@ -627,12 +666,18 @@ label {
   gap: 8px;
   min-height: 46px;
   padding: 10px 12px;
-  border: 1px solid rgba(47, 125, 104, 0.22);
+  border: 1px solid rgba(184, 107, 22, 0.22);
   border-radius: 999px;
-  background: var(--green);
-  color: #fff;
+  background: var(--amber-soft);
+  color: var(--amber);
   box-shadow: var(--shadow);
+  touch-action: none;
+  cursor: grab;
   font-weight: 800;
+}
+
+.today-menu-fab.dragging {
+  cursor: grabbing;
 }
 
 .today-menu-fab b {

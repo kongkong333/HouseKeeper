@@ -2,6 +2,7 @@
   const STORAGE_KEY = "housekeeper.state.v1";
   const SESSION_KEY = "housekeeper.currentUser.v1";
   const CLOUD_SESSION_KEY = "housekeeper.custom.session.v1";
+  const TODAY_MENU_FAB_POSITION_KEY = "housekeeper.todayMenuFabPosition.v1";
 
   const supplyCategories = ["纸巾", "洗衣液", "洗发水", "沐浴露", "牙膏", "垃圾袋", "清洁用品", "其他"];
   const kitchenLocations = ["冷藏", "冷冻", "常温"];
@@ -24,6 +25,8 @@
   let selectedMenuIngredientNames = null;
   let cloudSaveTimer = 0;
   let reminderTimer = 0;
+  let todayMenuFabDragState = null;
+  let todayMenuFabSuppressClick = false;
   const notifiedReminderOccurrences = new Set();
 
   function uid(prefix) {
@@ -563,10 +566,10 @@
           ${stat("采购", state.shoppingList.length)}
         </div>
       </section>
-      ${homeSection("需要补货", alerts.lowSupplies, (item) => supplyCard(item, true), "库存都还稳。", true)}
-      ${homeSection("快过期食材", alerts.expiringFridge, fridgeCard, "未来 5 天暂无快过期食材。", true)}
-      ${homeSection("药品提醒", alerts.medicineAlerts, medicineCard, "药品库存和有效期暂时正常。", true)}
-      ${homeSection("未来 7 天提醒", alerts.upcomingReminders, reminderCard, "接下来 7 天没有待办提醒。")}
+      ${homeSection("需要补货", alerts.lowSupplies, (item) => supplyCard(item, true), "库存都还稳。", "supplies")}
+      ${homeSection("快过期食材", alerts.expiringFridge, fridgeCard, "未来 5 天暂无快过期食材。", "fridge")}
+      ${homeSection("药品提醒", alerts.medicineAlerts, medicineCard, "药品库存和有效期暂时正常。", "medicine")}
+      ${homeSection("未来 7 天提醒", alerts.upcomingReminders, reminderCard, "接下来 7 天没有待办提醒。", "reminders")}
       ${renderShoppingList()}
     `;
   }
@@ -575,11 +578,17 @@
     return `<div class="stat"><span>${label}</span><b>${value}</b></div>`;
   }
 
-  function homeSection(title, items, renderer, emptyText, scrollable = false) {
+  function homeSection(title, items, renderer, emptyText, routeTarget, maxItems = 2) {
+    const visibleItems = items.slice(0, maxItems);
+    const hiddenCount = Math.max(0, items.length - visibleItems.length);
     return `
-      <section class="section${scrollable ? " scrollable-section" : ""}">
-        <div class="section-head"><h2>${title}</h2></div>
-        <div class="card-list">${items.length ? items.map(renderer).join("") : `<div class="empty">${emptyText}</div>`}</div>
+      <section class="section">
+        <div class="section-head">
+          <h2>${title}</h2>
+          ${routeTarget ? `<button class="section-link" type="button" data-route="${routeTarget}">查看全部</button>` : ""}
+        </div>
+        <div class="card-list">${visibleItems.length ? visibleItems.map(renderer).join("") : `<div class="empty">${emptyText}</div>`}</div>
+        ${hiddenCount ? `<button class="home-more" type="button" data-route="${routeTarget}">还有 ${hiddenCount} 条，查看全部</button>` : ""}
       </section>
     `;
   }
@@ -703,12 +712,40 @@
 
   function renderTodayMenuFloatingButton() {
     const count = state.todayMenu.length;
+    const position = loadTodayMenuFabPosition();
+    const positionStyle = position ? ` style="left:${position.x}px; top:${position.y}px; right:auto; bottom:auto;"` : "";
     return `
-      <button class="today-menu-fab" data-action="open-today-menu" type="button" aria-label="打开今日菜单">
+      <button class="today-menu-fab" data-action="open-today-menu" type="button" aria-label="打开今日菜单"${positionStyle}>
         <span>今日菜单</span>
         <b>${count}</b>
       </button>
     `;
+  }
+
+  function loadTodayMenuFabPosition() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(TODAY_MENU_FAB_POSITION_KEY) || "null");
+      if (!saved || !Number.isFinite(saved.x) || !Number.isFinite(saved.y)) return null;
+      return clampTodayMenuFabPosition(saved.x, saved.y, 112, 46);
+    } catch (error) {
+      console.warn("Today menu button position read failed", error);
+      return null;
+    }
+  }
+
+  function saveTodayMenuFabPosition(position) {
+    localStorage.setItem(TODAY_MENU_FAB_POSITION_KEY, JSON.stringify(position));
+  }
+
+  function clampTodayMenuFabPosition(x, y, width, height) {
+    const margin = 8;
+    const bottomNavReserve = 96;
+    const maxX = Math.max(margin, window.innerWidth - width - margin);
+    const maxY = Math.max(margin, window.innerHeight - height - bottomNavReserve);
+    return {
+      x: Math.min(Math.max(x, margin), maxX),
+      y: Math.min(Math.max(y, margin), maxY),
+    };
   }
 
   function openTodayMenuDrawer() {
@@ -1194,6 +1231,11 @@
     }
     const target = event.target.closest("[data-action], [data-route], [data-login]");
     if (!target) return;
+    if (target.closest(".today-menu-fab") && todayMenuFabSuppressClick) {
+      event.preventDefault();
+      todayMenuFabSuppressClick = false;
+      return;
+    }
     if (target.dataset.login) {
       currentUserId = target.dataset.login;
       localStorage.setItem(SESSION_KEY, currentUserId);
@@ -1277,6 +1319,60 @@
       renderApp();
     }
   });
+
+  document.addEventListener("pointerdown", (event) => {
+    const fab = event.target.closest(".today-menu-fab");
+    if (!fab || (typeof event.button === "number" && event.button !== 0)) return;
+    const rect = fab.getBoundingClientRect();
+    todayMenuFabDragState = {
+      pointerId: event.pointerId,
+      fab,
+      startX: event.clientX,
+      startY: event.clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+      width: rect.width,
+      height: rect.height,
+      dragging: false,
+    };
+    fab.setPointerCapture?.(event.pointerId);
+  });
+
+  document.addEventListener("pointermove", (event) => {
+    const state = todayMenuFabDragState;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const dx = event.clientX - state.startX;
+    const dy = event.clientY - state.startY;
+    if (!state.dragging && Math.hypot(dx, dy) < 6) return;
+    event.preventDefault();
+    state.dragging = true;
+    state.fab.classList.add("dragging");
+    const next = clampTodayMenuFabPosition(state.startLeft + dx, state.startTop + dy, state.width, state.height);
+    state.fab.style.left = `${next.x}px`;
+    state.fab.style.top = `${next.y}px`;
+    state.fab.style.right = "auto";
+    state.fab.style.bottom = "auto";
+  });
+
+  function finishTodayMenuFabDrag(event) {
+    const state = todayMenuFabDragState;
+    if (!state || state.pointerId !== event.pointerId) return;
+    state.fab.releasePointerCapture?.(event.pointerId);
+    state.fab.classList.remove("dragging");
+    if (state.dragging) {
+      const rect = state.fab.getBoundingClientRect();
+      const position = clampTodayMenuFabPosition(rect.left, rect.top, rect.width, rect.height);
+      saveTodayMenuFabPosition(position);
+      todayMenuFabSuppressClick = true;
+      window.setTimeout(() => {
+        todayMenuFabSuppressClick = false;
+      }, 250);
+    }
+    todayMenuFabDragState = null;
+  }
+
+  document.addEventListener("pointerup", finishTodayMenuFabDrag);
+  document.addEventListener("pointercancel", finishTodayMenuFabDrag);
 
   document.addEventListener("input", (event) => {
     if (event.target.dataset.action === "search") {

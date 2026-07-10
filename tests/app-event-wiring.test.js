@@ -156,9 +156,13 @@ assert(
     source.includes('homeSection("药品提醒"') &&
     source.includes('stat("采购", state.shoppingList.length)') &&
     source.includes("state.shoppingList.length") &&
-    source.includes("scrollable = false") &&
-    source.includes('${scrollable ? " scrollable-section" : ""}'),
-  "home alert sections should support compact internal scrolling"
+    source.includes("const visibleItems = items.slice(0, maxItems);") &&
+    source.includes("const hiddenCount = Math.max(0, items.length - visibleItems.length);") &&
+    source.includes('data-route="${routeTarget}"') &&
+    source.includes("还有 ${hiddenCount} 条，查看全部") &&
+    !source.includes("scrollable-section") &&
+    !styles.includes("overscroll-behavior: contain"),
+  "home alert sections should render compact summaries with module links instead of internal scrolling"
 );
 
 assert(
@@ -166,6 +170,20 @@ assert(
     styles.includes("justify-content: start;") &&
     styles.includes("grid-template-columns: repeat(5, minmax(0, 1fr));"),
   "home stats should keep five compact cards on one row"
+);
+
+assert(
+  styles.includes(".item-card .actions {") &&
+    styles.includes("flex-wrap: nowrap;") &&
+    styles.includes("overflow-x: auto;") &&
+    styles.includes(".item-card .actions .btn {") &&
+    styles.includes("min-height: 34px;") &&
+    styles.includes("padding: 7px 10px;") &&
+    styles.includes("font-size: 14px;") &&
+    styles.includes("white-space: nowrap;") &&
+    styles.includes(".item-card .actions .btn.icon {") &&
+    styles.includes("width: 34px;"),
+  "card action buttons should stay compact and single-line"
 );
 
 assert(
@@ -177,6 +195,24 @@ assert(
     source.includes("renderTodayMenuFloatingButton") &&
     source.includes("openTodayMenuDrawer"),
   "menu recommendations should let users add dishes to a synced today menu opened from a floating button"
+);
+
+assert(
+  source.includes('const TODAY_MENU_FAB_POSITION_KEY = "housekeeper.todayMenuFabPosition.v1";') &&
+    source.includes("loadTodayMenuFabPosition") &&
+    source.includes("saveTodayMenuFabPosition") &&
+    source.includes("clampTodayMenuFabPosition") &&
+    source.includes("todayMenuFabDragState") &&
+    source.includes('document.addEventListener("pointerdown"') &&
+    source.includes('document.addEventListener("pointermove"') &&
+    source.includes('document.addEventListener("pointerup"') &&
+    source.includes('document.addEventListener("pointercancel"') &&
+    source.includes("todayMenuFabSuppressClick") &&
+    source.includes("Math.hypot") &&
+    styles.includes("touch-action: none;") &&
+    styles.includes('cursor: grab;') &&
+    styles.includes(".today-menu-fab.dragging {"),
+  "today menu floating button should be draggable without breaking tap-to-open"
 );
 
 assert(
@@ -201,6 +237,14 @@ assert(
   source.includes("drawer-backdrop center-backdrop") &&
     source.includes("today-menu-drawer"),
   "today menu drawer should use a centered backdrop instead of the bottom drawer placement"
+);
+
+assert(
+  styles.includes(".today-menu-fab {") &&
+    styles.includes("background: var(--amber-soft);") &&
+    styles.includes("border: 1px solid rgba(184, 107, 22, 0.22);") &&
+    styles.includes("color: var(--amber);"),
+  "today menu floating button should use a soft orange background"
 );
 
 assert(
@@ -229,6 +273,13 @@ assert(
 );
 
 const appVersion = html.match(/src\/app\.js\?v=(\d+)/)?.[1];
+const styleVersion = html.match(/src\/styles\.css\?v=(\d+)/)?.[1];
+const cacheVersion = serviceWorker.match(/housekeeper-pwa-v(\d+)/)?.[1];
+assert(
+  appVersion === "32" && styleVersion === appVersion && cacheVersion === appVersion,
+  "home summary release should bump app, style, and service worker cache versions together"
+);
+
 assert(
   appVersion && serviceWorker.includes(`"./src/app.js?v=${appVersion}"`),
   "service worker should precache the same versioned app.js URL used by index"
