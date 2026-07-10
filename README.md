@@ -70,8 +70,6 @@ window.HOUSEKEEPER_SUPABASE = {
 };
 ```
 
-如果继续使用当前 Supabase 项目，通常不用修改这个文件。若换成新 Supabase 项目，请在 Supabase 控制台找到 Project URL 和 publishable/anon key 后替换。
-
 ### 3. 初始化云端数据库
 
 如果是新的 Supabase 项目，打开 Supabase Dashboard -> SQL Editor，把 `supabase/schema.sql` 的完整内容粘贴进去执行。
