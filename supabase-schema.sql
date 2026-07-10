@@ -16,15 +16,49 @@ create table if not exists public.housekeeper_sessions (
 );
 
 create table if not exists public.housekeeper_states (
-  user_id uuid primary key,
+  user_id uuid,
+  household_id text,
   data jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+alter table public.housekeeper_states
+add column if not exists household_id text;
+
+-- This app is for one household. All member accounts share this single state row.
+update public.housekeeper_states
+set household_id = 'default-home'
+where household_id is null;
+
+with latest_state as (
+  select ctid
+  from public.housekeeper_states
+  order by updated_at desc
+  limit 1
+)
+delete from public.housekeeper_states
+where ctid not in (select ctid from latest_state);
 
 -- Earlier email-auth versions pointed this foreign key at auth.users.
 -- Recreate it so custom HouseKeeper accounts can save state.
 alter table public.housekeeper_states
 drop constraint if exists housekeeper_states_user_id_fkey;
+
+alter table public.housekeeper_states
+drop constraint if exists housekeeper_states_pkey;
+
+alter table public.housekeeper_states
+alter column user_id drop not null;
+
+update public.housekeeper_states
+set user_id = null,
+    household_id = 'default-home';
+
+alter table public.housekeeper_states
+alter column household_id set not null;
+
+alter table public.housekeeper_states
+add primary key (household_id);
 
 alter table public.housekeeper_states
 add constraint housekeeper_states_user_id_fkey
@@ -152,14 +186,13 @@ security definer
 set search_path = public, extensions, pg_temp
 as $$
 declare
-  v_user_id uuid;
   v_data jsonb;
 begin
-  v_user_id := public.hk_session_user_id(p_token);
+  perform public.hk_session_user_id(p_token);
 
   select data into v_data
   from public.housekeeper_states
-  where user_id = v_user_id;
+  where household_id = 'default-home';
 
   return v_data;
 end;
@@ -171,15 +204,57 @@ language plpgsql
 security definer
 set search_path = public, extensions, pg_temp
 as $$
-declare
-  v_user_id uuid;
 begin
-  v_user_id := public.hk_session_user_id(p_token);
+  perform public.hk_session_user_id(p_token);
 
-  insert into public.housekeeper_states (user_id, data, updated_at)
-  values (v_user_id, p_data, now())
-  on conflict (user_id)
+  insert into public.housekeeper_states (household_id, data, updated_at)
+  values ('default-home', p_data, now())
+  on conflict (household_id)
   do update set data = excluded.data, updated_at = now();
+end;
+$$;
+
+create or replace function public.hk_list_accounts(p_token text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+declare
+  v_accounts jsonb;
+begin
+  perform public.hk_session_user_id(p_token);
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id', id,
+        'username', username,
+        'display_name', display_name,
+        'created_at', created_at
+      )
+      order by created_at asc
+    ),
+    '[]'::jsonb
+  )
+  into v_accounts
+  from public.housekeeper_users;
+
+  return v_accounts;
+end;
+$$;
+
+create or replace function public.hk_delete_account(p_token text, p_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+begin
+  perform public.hk_session_user_id(p_token);
+
+  delete from public.housekeeper_users
+  where id = p_user_id;
 end;
 $$;
 
@@ -191,3 +266,5 @@ grant execute on function public.hk_register(text, text, text) to anon, authenti
 grant execute on function public.hk_login(text, text) to anon, authenticated;
 grant execute on function public.hk_get_state(text) to anon, authenticated;
 grant execute on function public.hk_save_state(text, jsonb) to anon, authenticated;
+grant execute on function public.hk_list_accounts(text) to anon, authenticated;
+grant execute on function public.hk_delete_account(text, uuid) to anon, authenticated;

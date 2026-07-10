@@ -2,7 +2,6 @@
   const STORAGE_KEY = "housekeeper.state.v1";
   const SESSION_KEY = "housekeeper.currentUser.v1";
   const CLOUD_SESSION_KEY = "housekeeper.custom.session.v1";
-  const LOCAL_ARK_KEY = "housekeeper.localArkKey.v1";
 
   const supplyCategories = ["纸巾", "洗衣液", "洗发水", "沐浴露", "牙膏", "垃圾袋", "清洁用品", "其他"];
   const kitchenLocations = ["冷藏", "冷冻", "常温"];
@@ -21,7 +20,7 @@
   let syncStatus = "";
   let menuStatus = "";
   let menuResult = null;
-  let localArkKey = loadLocalArkKey();
+  let menuPreferences = { taste: "", symptoms: { soreThroat: false, cough: false, fever: false } };
   let cloudSaveTimer = 0;
   let reminderTimer = 0;
   const notifiedReminderOccurrences = new Set();
@@ -139,41 +138,20 @@
       .filter((item) => item.name);
   }
 
-  function buildMenuRecommendationPayload(ingredients) {
-    return { ingredients };
-  }
-
-  function buildArkMenuPayload(ingredients) {
+  function cleanMenuPreferences(preferences) {
+    const symptoms = preferences?.symptoms || {};
     return {
-      model: "glm-5-2-260617",
-      messages: [
-        {
-          role: "user",
-          content: [
-            "你是家庭厨房菜单推荐助手。",
-            "请仅使用我提供的厨房材料推荐菜品，不要引入任何未列出的主料或配菜。",
-            "调味品默认仅允许使用盐、糖、酱油、醋、食用油、葱姜蒜、胡椒。",
-            "请尽量给出多的菜品，返回 5-20 个可以制作的菜。",
-            "同时返回一组推荐的健康菜品搭配，包含 2-3 个菜，并给出健康搭配理由。",
-            "请返回严格 JSON，不要使用 Markdown。",
-            "JSON 结构为：{\"dishes\":[{\"name\":\"菜名\",\"ingredients\":[\"材料\"],\"notes\":\"简短做法或提示\"}],\"healthyCombo\":{\"dishes\":[\"菜名\"],\"reason\":\"理由\"}}。",
-            `厨房材料：${JSON.stringify(ingredients || [])}`,
-          ].join("\n"),
-        },
-      ],
-      max_tokens: 4096,
-      temperature: 0.8,
+      taste: String(preferences?.taste || "").trim().slice(0, 120),
+      symptoms: {
+        soreThroat: Boolean(symptoms.soreThroat),
+        cough: Boolean(symptoms.cough),
+        fever: Boolean(symptoms.fever),
+      },
     };
   }
 
-  function parseMenuContent(content) {
-    const text = String(content || "");
-    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    try {
-      return JSON.parse(cleaned);
-    } catch (error) {
-      return { rawText: cleaned || text };
-    }
+  function buildMenuRecommendationPayload(ingredients, preferences = menuPreferences) {
+    return { ingredients, preferences: cleanMenuPreferences(preferences) };
   }
 
   function isLowStock(item) {
@@ -216,24 +194,18 @@
   function loadLocalState() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-      if (saved && saved.version === 1) return saved;
+      if (saved && saved.version === 1) return ensureStateShape(saved);
     } catch (error) {
       console.warn("HouseKeeper storage read failed", error);
     }
-    return seedState();
+    return ensureStateShape(seedState());
   }
 
-  function loadLocalArkKey() {
-    return localStorage.getItem(LOCAL_ARK_KEY) || "";
-  }
-
-  function saveLocalArkKey(value) {
-    localArkKey = String(value || "").trim();
-    if (localArkKey) {
-      localStorage.setItem(LOCAL_ARK_KEY, localArkKey);
-    } else {
-      localStorage.removeItem(LOCAL_ARK_KEY);
-    }
+  function ensureStateShape(nextState) {
+    state = nextState || seedState();
+    state.todayMenu = Array.isArray(state.todayMenu) ? state.todayMenu : [];
+    state.shoppingList = Array.isArray(state.shoppingList) ? state.shoppingList : [];
+    return state;
   }
 
   function saveState() {
@@ -313,6 +285,19 @@
     renderSyncStatus();
   }
 
+  async function loadAccounts() {
+    return rpc("hk_list_accounts", {
+      p_token: cloudSession.token,
+    });
+  }
+
+  async function deleteAccount(userId) {
+    return rpc("hk_delete_account", {
+      p_token: cloudSession.token,
+      p_user_id: userId,
+    });
+  }
+
   function queueCloudSave() {
     if (!cloudEnabled || !cloudSession?.token) return;
     window.clearTimeout(cloudSaveTimer);
@@ -347,7 +332,7 @@
     try {
       renderLoading("正在从云端读取数据...");
       const cloudState = await loadCloudState();
-      state = cloudState || state;
+      state = ensureStateShape(cloudState || state);
       ensureCurrentUserRecord();
       saveState();
       if (!cloudState) await saveCloudStateNow();
@@ -385,6 +370,7 @@
         { id: "r_filter", title: "换净水器滤芯", date: addDays(6), dueAt: `${addDays(6)}T09:00`, repeat: "每月", assignee: "u_family", notes: "", completed: false, completedBy: "", completedAt: "" },
       ],
       shoppingList: [],
+      todayMenu: [],
     };
   }
 
@@ -431,9 +417,9 @@
         <main class="login-shell">
           <section class="login-card">
             <div class="brand-mark">HK</div>
-            <p class="eyebrow">HouseKeeper 云同步</p>
-            <h1>${authMode === "signup" ? "注册家庭账号" : "账号密码登录"}</h1>
-            <p class="muted">不用邮箱验证。每个账号独立保存数据，同一个账号可在多台设备同步。</p>
+            <p class="eyebrow">HouseKeeper 家庭共享数据</p>
+            <h1>${authMode === "signup" ? "注册成员账号" : "成员账号登录"}</h1>
+            <p class="muted">不用邮箱验证。不同成员账号会进入同一份家庭数据，用账号区分是谁在操作。</p>
             ${errorMessage ? `<p class="note" style="color:var(--red)">${escapeHtml(errorMessage)}</p>` : ""}
             <form class="form-grid" data-auth="${authMode}">
               <label>账号<input name="username" type="text" autocomplete="username" minlength="3" required placeholder="例如 liu-home"></label>
@@ -474,7 +460,7 @@
             <h1>${pageTitle()}</h1>
             <p class="sync-line" data-sync-status>${escapeHtml(syncStatus || (cloudEnabled ? "云同步已启用" : "本机模式"))}</p>
           </div>
-          <button class="user-pill" data-action="${cloudEnabled ? "logout" : "switch-user"}">${escapeHtml(currentUser().name)}</button>
+          <button class="user-pill" data-action="open-account-menu">${escapeHtml(currentUser().name)}</button>
         </header>
         ${renderRoute()}
       </main>
@@ -488,6 +474,7 @@
           ${tab("reminders", "○", "提醒")}
         </div>
       </nav>
+      ${route === "menu" ? renderTodayMenuFloatingButton() : ""}
     `;
   }
 
@@ -549,7 +536,6 @@
             <p class="eyebrow">今天 ${todayISO()}</p>
             <h2>家里有 ${alerts.lowSupplies.length + alerts.expiringFridge.length + alerts.medicineAlerts.length + alerts.upcomingReminders.length} 件事需要看一眼</h2>
           </div>
-          <strong>${alerts.upcomingReminders.length}</strong>
         </div>
         <div class="stats-grid">
           ${stat("补货", alerts.lowSupplies.length)}
@@ -624,14 +610,18 @@
         <div class="ingredient-strip">
           ${ingredients.length ? ingredients.map((item) => `<span class="chip">${escapeHtml(item.name)} ${escapeHtml(item.quantity)}${escapeHtml(item.unit)}</span>`).join("") : `<span class="muted">暂无可用食材</span>`}
         </div>
-        <div class="form-grid local-key-box">
-          <label>本机方舟 API Key<input type="password" value="${escapeHtml(localArkKey)}" placeholder="后端未部署时填写，仅保存在当前浏览器" data-local-ark-key autocomplete="off"></label>
-          <div class="actions local-key-actions">
-            <button class="btn secondary" type="button" data-action="save-local-ark-key">保存本机 Key</button>
-            <button class="btn ghost" type="button" data-action="clear-local-ark-key">清除</button>
+        <div class="menu-preferences">
+          <label class="preference-field">
+            <span>口味偏好</span>
+            <input type="text" data-action="menu-preference" placeholder="例如：清淡、少油、不吃辣" value="${escapeHtml(menuPreferences.taste)}" ${menuStatus === "loading" ? "disabled" : ""}>
+          </label>
+          <div class="symptom-options" aria-label="身体备注">
+            <label><input type="checkbox" data-action="menu-symptom" data-symptom="soreThroat" ${menuPreferences.symptoms.soreThroat ? "checked" : ""} ${menuStatus === "loading" ? "disabled" : ""}> 喉咙痛</label>
+            <label><input type="checkbox" data-action="menu-symptom" data-symptom="cough" ${menuPreferences.symptoms.cough ? "checked" : ""} ${menuStatus === "loading" ? "disabled" : ""}> 咳嗽</label>
+            <label><input type="checkbox" data-action="menu-symptom" data-symptom="fever" ${menuPreferences.symptoms.fever ? "checked" : ""} ${menuStatus === "loading" ? "disabled" : ""}> 发烧</label>
           </div>
-          <p class="note">优先使用 Supabase 安全代理；代理不可用时，才用本机 Key 直接请求方舟。</p>
         </div>
+        <p class="note">开发环境通过本地开发代理请求；线上优先使用 Supabase 安全代理。</p>
         <button class="btn menu-action" data-action="recommend-menu" ${menuStatus === "loading" ? "disabled" : ""}>${menuStatus === "loading" ? "推荐中..." : "AI智能菜单推荐"}</button>
         ${menuStatus && menuStatus !== "loading" ? `<p class="note">${escapeHtml(menuStatus)}</p>` : ""}
       </section>
@@ -655,13 +645,20 @@
       <section class="section">
         <div class="section-head"><h2>可做菜品</h2></div>
         <div class="card-list">
-          ${dishes.length ? dishes.map((dish) => `
-            <article class="item-card">
-              <p class="item-title">${escapeHtml(dish.name)}</p>
-              <p class="item-meta">${(dish.ingredients || []).map((name) => `<span>${escapeHtml(name)}</span>`).join("")}</p>
+          ${dishes.length ? dishes.map((dish, index) => {
+            const alreadyAdded = state.todayMenu.some((item) => item.name === dish.name);
+            return `
+            <article class="item-card dish-card">
+              <div class="item-main">
+                <div>
+                  <p class="item-title">${escapeHtml(dish.name)}</p>
+                  <p class="item-meta">${(dish.ingredients || []).map((name) => `<span>${escapeHtml(name)}</span>`).join("")}</p>
+                </div>
+                <button class="btn icon ${alreadyAdded ? "ghost" : "secondary"}" title="${alreadyAdded ? "已加入今日菜单" : "加入今日菜单"}" data-action="add-today-menu" data-index="${index}" ${alreadyAdded ? "disabled" : ""}>+</button>
+              </div>
               ${dish.notes ? `<p class="note">${escapeHtml(dish.notes)}</p>` : ""}
             </article>
-          `).join("") : `<div class="empty">AI 暂未返回可做菜品。</div>`}
+          `; }).join("") : `<div class="empty">AI 暂未返回可做菜品。</div>`}
         </div>
       </section>
       <section class="section">
@@ -672,6 +669,99 @@
         </article>
       </section>
     `;
+  }
+
+  function renderTodayMenuFloatingButton() {
+    const count = state.todayMenu.length;
+    return `
+      <button class="today-menu-fab" data-action="open-today-menu" type="button" aria-label="打开今日菜单">
+        <span>今日菜单</span>
+        <b>${count}</b>
+      </button>
+    `;
+  }
+
+  function openTodayMenuDrawer() {
+    document.body.insertAdjacentHTML("beforeend", `
+      <div class="drawer-backdrop center-backdrop">
+        <section class="drawer today-menu-drawer">
+          <div class="section-head"><h2>今日菜单</h2><button class="btn icon ghost" data-action="close-drawer">×</button></div>
+          ${
+            state.todayMenu.length
+              ? `<div class="card-list">${state.todayMenu.map((dish, index) => `
+                  <article class="item-card">
+                    <div class="item-main">
+                      <div>
+                        <p class="item-title">${escapeHtml(dish.name)}</p>
+                        <p class="item-meta">${(dish.ingredients || []).map((name) => `<span>${escapeHtml(name)}</span>`).join("")}</p>
+                      </div>
+                      <button class="btn icon danger" title="移出今日菜单" data-action="remove-today-menu" data-index="${index}">×</button>
+                    </div>
+                    ${dish.notes ? `<p class="note">${escapeHtml(dish.notes)}</p>` : ""}
+                  </article>
+                `).join("")}</div>`
+              : `<div class="empty">还没有加入今日菜单的菜。</div>`
+          }
+        </section>
+      </div>
+    `);
+  }
+
+  function openAccountMenuDrawer() {
+    document.body.insertAdjacentHTML("beforeend", `
+      <div class="drawer-backdrop center-backdrop">
+        <section class="drawer account-drawer">
+          <div class="section-head"><h2>账号</h2><button class="btn icon ghost" data-action="close-drawer">×</button></div>
+          <div class="account-actions">
+            <button class="btn ghost" data-action="${cloudEnabled ? "logout" : "switch-user"}" type="button">退出登录</button>
+            <button class="btn secondary" data-action="open-account-management" type="button">账号管理</button>
+          </div>
+        </section>
+      </div>
+    `);
+  }
+
+  function openAccountManagementDrawer() {
+    closeDrawer();
+    document.body.insertAdjacentHTML("beforeend", `
+      <div class="drawer-backdrop center-backdrop">
+        <section class="drawer account-drawer">
+          <div class="section-head"><h2>账号管理</h2><button class="btn icon ghost" data-action="close-drawer">×</button></div>
+          <div data-account-list>
+            <div class="empty">正在读取账号...</div>
+          </div>
+        </section>
+      </div>
+    `);
+    renderAccountList();
+  }
+
+  async function renderAccountList() {
+    const target = document.querySelector("[data-account-list]");
+    if (!target) return;
+    if (!cloudEnabled || !cloudSession?.token) {
+      target.innerHTML = `<div class="empty">本机模式没有云端账号。</div>`;
+      return;
+    }
+    try {
+      const accounts = await loadAccounts();
+      target.innerHTML = `
+        <p class="note">删除账号后，该成员将无法登录。家庭数据会保留。</p>
+        <div class="account-list">
+          ${accounts.length ? accounts.map((account) => `
+            <article class="account-row">
+              <div>
+                <p class="item-title">${escapeHtml(account.display_name || account.username)}</p>
+                <p class="item-meta"><span>${escapeHtml(account.username)}</span>${account.id === currentUserId ? "<span>当前账号</span>" : ""}</p>
+              </div>
+              <button class="btn icon danger" title="删除账号" data-action="delete-account" data-id="${escapeHtml(account.id)}">×</button>
+            </article>
+          `).join("") : `<div class="empty">还没有注册账号。</div>`}
+        </div>
+      `;
+    } catch (error) {
+      target.innerHTML = `<div class="empty">${escapeHtml(error.message || "账号列表读取失败。")}</div>`;
+    }
   }
 
   function renderMedicines() {
@@ -719,7 +809,7 @@
             <p class="item-title">${escapeHtml(item.name)}</p>
             <p class="item-meta"><span>${escapeHtml(item.category)}</span><span>${escapeHtml(item.location)}</span><span>最低 ${item.minQuantity}${escapeHtml(item.unit)}</span></p>
           </div>
-          <div class="qty">${item.quantity}<br><small>${escapeHtml(item.unit)}</small></div>
+          <div class="qty">${item.quantity}${escapeHtml(item.unit)}</div>
         </div>
         ${item.notes ? `<p class="note">${escapeHtml(item.notes)}</p>` : ""}
         <div class="actions">
@@ -737,7 +827,7 @@
 
   function fridgeCard(item) {
     const days = daysUntil(item.expiryDate);
-    const cls = item.status === "used-up" ? "" : days <= 1 ? "danger" : days <= 5 ? "warning" : "";
+    const cls = item.status === "used-up" ? "" : days < 0 ? "danger" : days <= 1 ? "danger" : days <= 5 ? "warning" : "";
     return `
       <article class="item-card ${cls}">
         <div class="item-main">
@@ -745,11 +835,12 @@
             <p class="item-title">${escapeHtml(item.name)}</p>
             <p class="item-meta"><span>${escapeHtml(item.location)}</span><span>购买 ${item.purchaseDate || "未填"}</span><span>保质期 ${item.expiryDate || "未填"}</span></p>
           </div>
-          <div class="qty">${item.quantity}<br><small>${escapeHtml(item.unit)}</small></div>
+          <div class="qty">${item.quantity}${escapeHtml(item.unit)}</div>
         </div>
         <p class="note">${item.status === "used-up" ? "已用完" : days >= 0 ? `还有 ${days} 天到期` : `已过期 ${Math.abs(days)} 天`}${item.notes ? ` · ${escapeHtml(item.notes)}` : ""}</p>
         <div class="actions">
-          ${item.status !== "used-up" && days <= 5 ? `<span class="badge ${days <= 1 ? "danger" : "warn"}">快过期</span>` : ""}
+          ${item.status !== "used-up" && days < 0 ? `<span class="badge danger">已过期</span>` : ""}
+          ${item.status !== "used-up" && days >= 0 && days <= 5 ? `<span class="badge ${days <= 1 ? "danger" : "warn"}">快过期</span>` : ""}
           <button class="btn secondary" data-action="decrement" data-kind="fridge" data-id="${item.id}">减少</button>
           <button class="btn warn" data-action="used-up" data-id="${item.id}">已用完</button>
           <button class="btn ghost" data-action="open-form" data-type="fridge" data-id="${item.id}">编辑</button>
@@ -769,7 +860,7 @@
             <p class="item-title">${escapeHtml(item.name)}</p>
             <p class="item-meta"><span>${escapeHtml(item.location)}</span><span>有效期 ${item.expiryDate || "未填"}</span><span>最低 ${item.minQuantity}${escapeHtml(item.unit)}</span></p>
           </div>
-          <div class="qty">${item.quantity}<br><small>${escapeHtml(item.unit)}</small></div>
+          <div class="qty">${item.quantity}${escapeHtml(item.unit)}</div>
         </div>
         <p class="note">适用记录：${escapeHtml(item.symptoms || "未填写")}。仅作家庭库存提醒，请按说明书和专业建议使用。</p>
         <div class="actions">
@@ -921,6 +1012,30 @@
     renderApp();
   }
 
+  function addTodayMenuDish(index) {
+    const dishes = Array.isArray(menuResult?.dishes) ? menuResult.dishes : [];
+    const dish = dishes[Number(index)];
+    if (!dish?.name || state.todayMenu.some((item) => item.name === dish.name)) return;
+    state.todayMenu.push({
+      id: uid("dish"),
+      name: dish.name,
+      ingredients: Array.isArray(dish.ingredients) ? dish.ingredients : [],
+      notes: dish.notes || "",
+      addedBy: currentUserId,
+      addedAt: new Date().toISOString(),
+    });
+    saveState();
+    renderApp();
+  }
+
+  function removeTodayMenuDish(index) {
+    state.todayMenu.splice(Number(index), 1);
+    saveState();
+    closeDrawer();
+    openTodayMenuDrawer();
+    renderApp();
+  }
+
   function closeDrawer() {
     document.querySelector(".drawer-backdrop")?.remove();
   }
@@ -935,28 +1050,24 @@
         ...supabaseHeaders(),
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildMenuRecommendationPayload(ingredients)),
+      body: JSON.stringify(buildMenuRecommendationPayload(ingredients, menuPreferences)),
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) throw new Error(data?.message || data?.error || response.statusText);
     return data?.result || data;
   }
 
-  async function requestArkMenuDirectly(ingredients) {
-    if (!localArkKey) {
-      throw new Error("未填写本机方舟 API Key");
-    }
-    const response = await fetch("https://ark.cn-beijing.volces.com/api/v3/chat/completions", {
+  async function requestMenuViaDevServer(ingredients) {
+    const response = await fetch("/dev/recommend-menu", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${localArkKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(buildArkMenuPayload(ingredients)),
+      body: JSON.stringify(buildMenuRecommendationPayload(ingredients, menuPreferences)),
     });
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.message || data?.error?.message || response.statusText);
-    return parseMenuContent(data?.choices?.[0]?.message?.content || "");
+    if (!response.ok) throw new Error(data?.message || data?.error || response.statusText);
+    return data?.result || data;
   }
 
   async function requestMenuRecommendations() {
@@ -970,12 +1081,12 @@
     menuStatus = "loading";
     renderApp();
     try {
-      menuResult = await requestMenuViaSupabase(ingredients);
-      menuStatus = `已通过 Supabase 安全代理，根据 ${ingredients.length} 种食材生成推荐。`;
+      menuResult = await requestMenuViaDevServer(ingredients);
+      menuStatus = `已通过本地开发代理，根据 ${ingredients.length} 种食材生成推荐。`;
     } catch (error) {
       try {
-        menuResult = await requestArkMenuDirectly(ingredients);
-        menuStatus = `Supabase 代理不可用，已使用本机 Key 根据 ${ingredients.length} 种食材生成推荐。`;
+        menuResult = await requestMenuViaSupabase(ingredients);
+        menuStatus = `已通过 Supabase 安全代理，根据 ${ingredients.length} 种食材生成推荐。`;
       } catch (fallbackError) {
         menuStatus = `AI菜单服务暂不可用：${fallbackError.message || error.message || "请稍后再试"}`;
         menuResult = null;
@@ -1081,20 +1192,16 @@
       authMode = authMode === "signup" ? "signin" : "signup";
       renderLogin();
     }
+    if (action === "open-account-menu") openAccountMenuDrawer();
+    if (action === "open-account-management") openAccountManagementDrawer();
+    if (action === "delete-account") handleDeleteAccount(target.dataset.id);
     if (action === "open-form") openForm(target.dataset.type, target.dataset.id);
     if (action === "close-drawer") closeDrawer();
     if (action === "close-reminder-toast") target.closest(".reminder-toast")?.remove();
-    if (action === "save-local-ark-key") {
-      saveLocalArkKey(document.querySelector("[data-local-ark-key]")?.value || "");
-      menuStatus = localArkKey ? "本机方舟 API Key 已保存到当前浏览器。" : "本机方舟 API Key 已清空。";
-      renderApp();
-    }
-    if (action === "clear-local-ark-key") {
-      saveLocalArkKey("");
-      menuStatus = "本机方舟 API Key 已清空。";
-      renderApp();
-    }
     if (action === "recommend-menu") requestMenuRecommendations();
+    if (action === "add-today-menu") addTodayMenuDish(target.dataset.index);
+    if (action === "open-today-menu") openTodayMenuDrawer();
+    if (action === "remove-today-menu") removeTodayMenuDish(target.dataset.index);
     if (action === "decrement") decrement(target.dataset.kind, target.dataset.id);
     if (action === "delete" && confirm("确认删除这条记录吗？")) removeItem(target.dataset.kind, target.dataset.id);
     if (action === "shopping") {
@@ -1133,12 +1240,24 @@
       search = event.target.value;
       renderAppPreservingSearch(cursor);
     }
+    if (event.target.dataset.action === "menu-preference") {
+      menuPreferences = cleanMenuPreferences({ ...menuPreferences, taste: event.target.value });
+    }
   });
 
   document.addEventListener("change", (event) => {
     if (event.target.dataset.action === "sort") {
       sortMode = event.target.value;
       renderApp();
+    }
+    if (event.target.dataset.action === "menu-symptom") {
+      const symptom = event.target.dataset.symptom;
+      if (symptom in menuPreferences.symptoms) {
+        menuPreferences = cleanMenuPreferences({
+          ...menuPreferences,
+          symptoms: { ...menuPreferences.symptoms, [symptom]: event.target.checked },
+        });
+      }
     }
   });
 
@@ -1164,7 +1283,7 @@
         : await signIn(data.username, data.password);
       saveCloudSession(session);
       const cloudState = await loadCloudState();
-      state = cloudState || loadLocalState();
+      state = ensureStateShape(cloudState || loadLocalState());
       ensureCurrentUserRecord();
       saveState();
       if (!cloudState) await saveCloudStateNow();
@@ -1172,6 +1291,30 @@
       renderApp();
     } catch (error) {
       renderLogin(error.message);
+    }
+  }
+
+  async function handleDeleteAccount(userId) {
+    if (!cloudEnabled || !cloudSession?.token || !userId) return;
+    if (!confirm("确认删除这个账号吗？家庭数据会保留。")) return;
+    const deletingCurrentUser = userId === currentUserId;
+    try {
+      await deleteAccount(userId);
+      state.users = state.users.filter((user) => user.id !== userId);
+      saveState();
+      if (deletingCurrentUser) {
+        saveCloudSession(null);
+        currentUserId = "";
+        localStorage.removeItem(SESSION_KEY);
+        syncStatus = "";
+        closeDrawer();
+        renderLogin("当前账号已删除，请重新注册或使用其他账号登录。");
+        return;
+      }
+      renderAccountList();
+    } catch (error) {
+      const target = document.querySelector("[data-account-list]");
+      if (target) target.innerHTML = `<div class="empty">${escapeHtml(error.message || "账号删除失败，请稍后再试。")}</div>`;
     }
   }
 

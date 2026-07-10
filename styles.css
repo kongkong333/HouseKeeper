@@ -278,6 +278,7 @@ h3 {
   background: var(--surface-2);
   text-align: center;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .actions {
@@ -440,6 +441,11 @@ label {
   background: rgba(20, 34, 29, 0.28);
 }
 
+.drawer-backdrop.center-backdrop {
+  align-items: center;
+  padding: 18px;
+}
+
 .drawer {
   width: min(100%, 520px);
   max-height: 88vh;
@@ -449,6 +455,11 @@ label {
   border-radius: 18px 18px 0 0;
   background: var(--surface);
   box-shadow: 0 -18px 60px rgba(21, 40, 31, 0.18);
+}
+
+.center-backdrop .drawer {
+  border-radius: 14px;
+  box-shadow: var(--shadow);
 }
 
 .reminder-toast {
@@ -542,8 +553,114 @@ label {
   margin: 12px 0;
 }
 
+.menu-preferences {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.preference-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.symptom-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.symptom-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.symptom-options input {
+  width: 16px;
+  height: 16px;
+}
+
 .menu-action {
   width: 100%;
+}
+
+.dish-card .item-main {
+  align-items: flex-start;
+}
+
+.dish-card .btn.icon {
+  flex: 0 0 42px;
+}
+
+.today-menu-fab {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(104px + env(safe-area-inset-bottom));
+  z-index: 18;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid rgba(47, 125, 104, 0.22);
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  box-shadow: var(--shadow);
+  font-weight: 800;
+}
+
+.today-menu-fab b {
+  display: inline-grid;
+  min-width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 13px;
+}
+
+.today-menu-drawer .item-card {
+  box-shadow: none;
+}
+
+.account-drawer {
+  width: min(100%, 360px);
+}
+
+.account-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.account-list {
+  display: grid;
+  gap: 10px;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.account-row .btn.icon {
+  flex: 0 0 42px;
 }
 
 .local-key-box {

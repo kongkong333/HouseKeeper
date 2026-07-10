@@ -4,6 +4,7 @@ const fs = require("fs");
 const source = fs.readFileSync("app.js", "utf8");
 const html = fs.readFileSync("index.html", "utf8");
 const serviceWorker = fs.readFileSync("service-worker.js", "utf8");
+const recommendMenuFunction = fs.readFileSync("supabase/functions/recommend-menu/index.ts", "utf8");
 
 assert(
   source.includes('document.body.insertAdjacentHTML("beforeend", drawer(type, item));'),
@@ -72,12 +73,30 @@ assert(
   source.includes("AI智能菜单推荐") &&
     source.includes("functions/v1/recommend-menu") &&
     source.includes("buildMenuRecommendationPayload") &&
-    source.includes("LOCAL_ARK_KEY") &&
-    source.includes("requestArkMenuDirectly") &&
-    source.includes("本机方舟 API Key") &&
+    source.includes("requestMenuViaDevServer") &&
+    source.includes("/dev/recommend-menu") &&
+    source.includes("本地开发代理") &&
+    !source.includes("LOCAL_ARK_KEY") &&
+    !source.includes("requestArkMenuDirectly") &&
+    !source.includes("本机方舟 API Key") &&
     !source.includes("ARK_API_KEY") &&
     !source.includes("volcenginesdkarkruntime"),
-  "browser code should support Supabase menu function plus local-key fallback without embedding actual Ark secrets"
+  "browser code should use a local development proxy or Supabase without embedding actual Ark secrets"
+);
+
+assert(
+  source.includes("menuPreferences") &&
+    source.includes('data-action="menu-preference"') &&
+    source.includes('data-action="menu-symptom"') &&
+    source.includes("soreThroat") &&
+    source.includes("cough") &&
+    source.includes("fever") &&
+    source.includes("buildMenuRecommendationPayload(ingredients, menuPreferences)") &&
+    recommendMenuFunction.includes("preferences") &&
+    recommendMenuFunction.includes("soreThroat") &&
+    recommendMenuFunction.includes("cough") &&
+    recommendMenuFunction.includes("fever"),
+  "AI menu recommendations should send taste preferences and symptom notes to the model"
 );
 
 assert(
@@ -87,6 +106,61 @@ assert(
     source.includes("scrollable = false") &&
     source.includes('${scrollable ? " scrollable-section" : ""}'),
   "home alert sections should support compact internal scrolling"
+);
+
+assert(
+  source.includes("todayMenu: []") &&
+    source.includes("state.todayMenu = Array.isArray(state.todayMenu) ? state.todayMenu : []") &&
+    source.includes('data-action="add-today-menu"') &&
+    source.includes('data-action="open-today-menu"') &&
+    source.includes('data-action="remove-today-menu"') &&
+    source.includes("renderTodayMenuFloatingButton") &&
+    source.includes("openTodayMenuDrawer"),
+  "menu recommendations should let users add dishes to a synced today menu opened from a floating button"
+);
+
+assert(
+  !source.includes("<strong>${alerts.upcomingReminders.length}</strong>"),
+  "home hero should not show the unexplained large reminder count on the right"
+);
+
+assert(
+  source.includes('item.status !== "used-up" && days >= 0 && days <= 5') &&
+    source.includes("已过期") &&
+    source.includes("过期"),
+  "expired kitchen items should show expired state instead of fast-expiring state"
+);
+
+assert(
+  !source.includes("<br><small>") &&
+    source.includes('<div class="qty">${item.quantity}${escapeHtml(item.unit)}</div>'),
+  "quantity badges should render unit and number horizontally"
+);
+
+assert(
+  source.includes("drawer-backdrop center-backdrop") &&
+    source.includes("today-menu-drawer"),
+  "today menu drawer should use a centered backdrop instead of the bottom drawer placement"
+);
+
+assert(
+  source.includes("家庭共享数据") &&
+    source.includes("不同成员账号会进入同一份家庭数据") &&
+    !source.includes("每个账号独立保存数据"),
+  "cloud login copy should explain that member accounts share one household state"
+);
+
+assert(
+  source.includes('data-action="open-account-menu"') &&
+    source.includes("openAccountMenuDrawer") &&
+    source.includes("openAccountManagementDrawer") &&
+    source.includes("loadAccounts") &&
+    source.includes("deleteAccount") &&
+    source.includes('data-action="delete-account"') &&
+    source.includes("account-list") &&
+    source.includes("账号管理") &&
+    !source.includes("删除所有账号"),
+  "account management should list registered accounts and delete one account at a time"
 );
 
 assert(
