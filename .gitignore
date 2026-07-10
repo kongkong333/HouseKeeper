@@ -26,3 +26,5 @@ build/
 Thumbs.db
 *.swp
 *.swo
+
+docs/
