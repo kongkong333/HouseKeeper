@@ -1,7 +1,7 @@
 const assert = require("assert");
 const fs = require("fs");
 
-const source = fs.readFileSync("app.js", "utf8");
+const source = fs.readFileSync("src/app.js", "utf8");
 const html = fs.readFileSync("index.html", "utf8");
 const serviceWorker = fs.readFileSync("service-worker.js", "utf8");
 const recommendMenuFunction = fs.readFileSync("supabase/functions/recommend-menu/index.ts", "utf8");
@@ -164,13 +164,13 @@ assert(
 );
 
 assert(
-  /<script src="app\.js\?v=\d+" defer><\/script>/.test(html),
+  /<script src="src\/app\.js\?v=\d+" defer><\/script>/.test(html),
   "index should cache-bust app.js so reminder UI updates reach existing PWA installs"
 );
 
-const appVersion = html.match(/app\.js\?v=(\d+)/)?.[1];
+const appVersion = html.match(/src\/app\.js\?v=(\d+)/)?.[1];
 assert(
-  appVersion && serviceWorker.includes(`"./app.js?v=${appVersion}"`),
+  appVersion && serviceWorker.includes(`"./src/app.js?v=${appVersion}"`),
   "service worker should precache the same versioned app.js URL used by index"
 );
 

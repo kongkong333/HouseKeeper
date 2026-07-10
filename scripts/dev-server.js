@@ -3,7 +3,7 @@ const http = require("http");
 const os = require("os");
 const path = require("path");
 
-const root = __dirname;
+const root = path.resolve(__dirname, "..");
 const port = Number(process.env.PORT || 5174);
 const host = process.env.HOST || "0.0.0.0";
 const envPath = path.join(root, ".env.local");

@@ -1,7 +1,7 @@
 const assert = require("assert");
 const fs = require("fs");
 
-const schema = fs.readFileSync("supabase-schema.sql", "utf8");
+const schema = fs.readFileSync("supabase/schema.sql", "utf8");
 
 assert(
   schema.includes("household_id text") &&

@@ -61,7 +61,7 @@ cd <repo-name>
 
 ### 2. 检查 Supabase 配置
 
-`supabase-config.js` 保存浏览器可公开使用的 Supabase Project URL 和 publishable/anon key：
+`src/supabase-config.js` 保存浏览器可公开使用的 Supabase Project URL 和 publishable/anon key：
 
 ```js
 window.HOUSEKEEPER_SUPABASE = {
@@ -74,11 +74,11 @@ window.HOUSEKEEPER_SUPABASE = {
 
 ### 3. 初始化云端数据库
 
-如果是新的 Supabase 项目，打开 Supabase Dashboard -> SQL Editor，把 `supabase-schema.sql` 的完整内容粘贴进去执行。
+如果是新的 Supabase 项目，打开 Supabase Dashboard -> SQL Editor，把 `supabase/schema.sql` 的完整内容粘贴进去执行。
 
 这个 schema 会创建 HouseKeeper 需要的表和 RPC 函数。The app uses a custom username/password login implemented with Supabase Postgres RPC functions. Different member accounts share the same household state in `public.housekeeper_states`; accounts identify who is operating, while the household data is shared by the family.
 
-如果是已有项目且已经执行过 `supabase-schema.sql`，不需要重复执行，除非 schema 文件有更新。
+如果是已有项目且已经执行过 `supabase/schema.sql`，不需要重复执行，除非 schema 文件有更新。
 
 ### 4. 配置 AI 点菜
 
@@ -102,7 +102,7 @@ supabase functions deploy recommend-menu
 ### 5. 本地运行
 
 ```powershell
-node dev-server.js
+node scripts/dev-server.js
 ```
 
 电脑浏览器打开：
@@ -129,8 +129,8 @@ http://192.168.1.10:5174
 项目测试使用 Node.js 内置测试能力和普通脚本断言，不需要额外安装依赖。
 
 ```powershell
-node --test app-core.test.js app-cloud-auth.test.js app-event-wiring.test.js dev-server.test.js supabase-schema.test.js
-node readme.test.js
+node --test tests/app-core.test.js tests/app-cloud-auth.test.js tests/app-event-wiring.test.js tests/dev-server.test.js tests/supabase-schema.test.js
+node tests/readme.test.js
 ```
 
 ## 常见问题
@@ -138,5 +138,5 @@ node readme.test.js
 - `scoop` 命令不存在：关闭 PowerShell 后重新打开；仍不行时检查 Scoop 是否安装成功。
 - `node` 命令不存在：运行 `scoop install nodejs-lts`，然后重新打开 PowerShell。
 - AI 点菜提示 `ARK_API_KEY is not configured`：检查 `.env.local` 是否在项目根目录，变量名是否为 `ARK_API_KEY`。
-- 云同步失败：检查 `supabase-config.js` 的 URL/key 是否正确，并确认 `supabase-schema.sql` 已在 Supabase SQL Editor 执行。
+- 云同步失败：检查 `src/supabase-config.js` 的 URL/key 是否正确，并确认 `supabase/schema.sql` 已在 Supabase SQL Editor 执行。
 - Supabase CLI 部署失败：先运行 `supabase login`，再运行 `supabase link --project-ref <your-project-ref>`。

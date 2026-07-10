@@ -11,7 +11,7 @@ const {
   buildMenuRecommendationPayload,
   shouldNotifyReminder,
   suggestRecipes,
-} = require("./app-core");
+} = require("../src/app-core");
 
 const today = new Date("2026-07-09T00:00:00");
 

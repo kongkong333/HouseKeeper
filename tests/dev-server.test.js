@@ -1,7 +1,7 @@
 const assert = require("assert");
 const fs = require("fs");
 
-const source = fs.readFileSync("dev-server.js", "utf8");
+const source = fs.readFileSync("scripts/dev-server.js", "utf8");
 const gitignore = fs.readFileSync(".gitignore", "utf8");
 
 assert(

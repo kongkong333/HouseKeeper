@@ -1,6 +1,7 @@
 # Local secrets
 .env
 .env.*
+.env.local
 !.env.example
 
 # Node / local tooling

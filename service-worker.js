@@ -2,12 +2,12 @@ const CACHE_NAME = "housekeeper-pwa-v24";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=24",
-  "./supabase-config.js?v=17",
-  "./app.js?v=24",
+  "./src/styles.css?v=24",
+  "./src/supabase-config.js?v=17",
+  "./src/app.js?v=24",
   "./manifest.webmanifest",
-  "./icon.svg",
-  "./icon-maskable.svg"
+  "./public/icon.svg",
+  "./public/icon-maskable.svg"
 ];
 
 self.addEventListener("install", (event) => {
