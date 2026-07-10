@@ -2,6 +2,7 @@ const assert = require("assert");
 const fs = require("fs");
 
 const source = fs.readFileSync("src/app.js", "utf8");
+const styles = fs.readFileSync("src/styles.css", "utf8");
 const html = fs.readFileSync("index.html", "utf8");
 const serviceWorker = fs.readFileSync("service-worker.js", "utf8");
 const recommendMenuFunction = fs.readFileSync("supabase/functions/recommend-menu/index.ts", "utf8");
@@ -92,7 +93,8 @@ assert(
     source.includes("cough") &&
     source.includes("fever") &&
     source.includes("otherDiscomfort") &&
-    source.includes("其他不适") &&
+    source.includes("不适症状") &&
+    !source.includes("其他不适") &&
     source.includes("buildMenuRecommendationPayload(ingredients, menuPreferences)") &&
     recommendMenuFunction.includes("preferences") &&
     recommendMenuFunction.includes("soreThroat") &&
@@ -104,12 +106,66 @@ assert(
 );
 
 assert(
+  source.indexOf("<span>不适症状</span>") !== -1 &&
+    source.indexOf('data-action="menu-other-discomfort"') !== -1 &&
+    source.indexOf('data-symptom="soreThroat"') !== -1 &&
+    source.indexOf('data-symptom="cough"') !== -1 &&
+    source.indexOf('data-symptom="fever"') !== -1 &&
+    source.indexOf('data-action="menu-other-discomfort"') < source.indexOf('data-symptom="soreThroat"') &&
+    source.indexOf('data-symptom="soreThroat"') < source.indexOf('data-symptom="cough"') &&
+    source.indexOf('data-symptom="cough"') < source.indexOf('data-symptom="fever"'),
+  "AI menu discomfort text field should be labeled as symptoms and appear above symptom checkboxes"
+);
+
+assert(
+  source.includes("selectedMenuIngredientNames") &&
+    source.includes('data-action="toggle-menu-ingredient"') &&
+    source.includes("getSelectedMenuIngredients") &&
+    source.includes("ingredient-chip selected") &&
+    source.includes("只依据选中食材生成菜品；取消所有选中时，会按照当前时节、口味偏好和不适症状推荐时令菜品。"),
+  "AI menu ingredient chips should be selectable and only selected ingredients should be sent"
+);
+
+assert(
+  styles.includes(".ingredient-chip") &&
+    styles.includes("font-size: 14px;") &&
+    styles.includes("min-height: 30px;") &&
+    styles.includes("padding: 4px 9px;"),
+  "AI menu ingredient chips should use compact text and spacing"
+);
+
+assert(
+  source.indexOf("<h2>健康搭配</h2>") !== -1 &&
+    source.indexOf("<h2>可做菜品</h2>") !== -1 &&
+    source.indexOf("<h2>健康搭配</h2>") < source.indexOf("<h2>可做菜品</h2>"),
+  "healthy combo should render above available dishes"
+);
+
+assert(
+  source.includes('data-action="add-dish-shopping"') &&
+    source.includes("addDishIngredientsToShoppingList") &&
+    source.includes("加入采购清单") &&
+    source.includes("new Set(state.shoppingList)") &&
+    source.includes("没有选择食材，已按时节和备注生成推荐。"),
+  "seasonal no-ingredient recommendations should let users add returned dish ingredients to the shopping list"
+);
+
+assert(
   source.includes('homeSection("需要补货"') &&
     source.includes('homeSection("快过期食材"') &&
     source.includes('homeSection("药品提醒"') &&
+    source.includes('stat("采购", state.shoppingList.length)') &&
+    source.includes("state.shoppingList.length") &&
     source.includes("scrollable = false") &&
     source.includes('${scrollable ? " scrollable-section" : ""}'),
   "home alert sections should support compact internal scrolling"
+);
+
+assert(
+  styles.includes("grid-template-columns: repeat(5, minmax(0, 128px));") &&
+    styles.includes("justify-content: start;") &&
+    styles.includes("grid-template-columns: repeat(5, minmax(0, 1fr));"),
+  "home stats should keep five compact cards on one row"
 );
 
 assert(

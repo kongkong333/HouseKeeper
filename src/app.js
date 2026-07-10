@@ -21,6 +21,7 @@
   let menuStatus = "";
   let menuResult = null;
   let menuPreferences = { taste: "", otherDiscomfort: "", symptoms: { soreThroat: false, cough: false, fever: false } };
+  let selectedMenuIngredientNames = null;
   let cloudSaveTimer = 0;
   let reminderTimer = 0;
   const notifiedReminderOccurrences = new Set();
@@ -153,6 +154,22 @@
 
   function buildMenuRecommendationPayload(ingredients, preferences = menuPreferences) {
     return { ingredients, preferences: cleanMenuPreferences(preferences) };
+  }
+
+  function getSelectedMenuIngredients(ingredients) {
+    if (!selectedMenuIngredientNames) return ingredients;
+    return ingredients.filter((item) => selectedMenuIngredientNames.has(item.name));
+  }
+
+  function toggleMenuIngredient(name) {
+    const ingredients = getEligibleKitchenIngredients(state.fridge);
+    const selected = new Set((selectedMenuIngredientNames || new Set(ingredients.map((item) => item.name))));
+    if (selected.has(name)) selected.delete(name);
+    else selected.add(name);
+    selectedMenuIngredientNames = selected;
+    menuResult = null;
+    menuStatus = "";
+    renderApp();
   }
 
   function isLowStock(item) {
@@ -535,7 +552,7 @@
         <div class="hero-row">
           <div>
             <p class="eyebrow">今天 ${todayISO()}</p>
-            <h2>家里有 ${alerts.lowSupplies.length + alerts.expiringFridge.length + alerts.medicineAlerts.length + alerts.upcomingReminders.length} 件事需要看一眼</h2>
+            <h2>家里有 ${alerts.lowSupplies.length + alerts.expiringFridge.length + alerts.medicineAlerts.length + alerts.upcomingReminders.length + state.shoppingList.length} 件事需要看一眼</h2>
           </div>
         </div>
         <div class="stats-grid">
@@ -543,6 +560,7 @@
           ${stat("食材", alerts.expiringFridge.length)}
           ${stat("药品", alerts.medicineAlerts.length)}
           ${stat("提醒", alerts.upcomingReminders.length)}
+          ${stat("采购", state.shoppingList.length)}
         </div>
       </section>
       ${homeSection("需要补货", alerts.lowSupplies, (item) => supplyCard(item, true), "库存都还稳。", true)}
@@ -600,33 +618,37 @@
 
   function renderMenu() {
     const ingredients = getEligibleKitchenIngredients(state.fridge);
+    const selectedIngredients = getSelectedMenuIngredients(ingredients);
     return `
       <section class="panel menu-panel">
         <div class="section-head">
           <div>
             <h2>AI智能菜单推荐</h2>
-            <p class="note">仅使用厨房管理中未用完、未过期的食材生成菜单。</p>
+            <p class="note">只依据选中食材生成菜品；取消所有选中时，会按照当前时节、口味偏好和不适症状推荐时令菜品。</p>
           </div>
         </div>
         <div class="ingredient-strip">
-          ${ingredients.length ? ingredients.map((item) => `<span class="chip">${escapeHtml(item.name)} ${escapeHtml(item.quantity)}${escapeHtml(item.unit)}</span>`).join("") : `<span class="muted">暂无可用食材</span>`}
+          ${ingredients.length ? ingredients.map((item) => {
+            const selected = selectedIngredients.some((selectedItem) => selectedItem.name === item.name);
+            return `<button class="${selected ? "chip ingredient-chip selected" : "chip ingredient-chip"}" type="button" data-action="toggle-menu-ingredient" data-name="${escapeHtml(item.name)}" aria-pressed="${selected ? "true" : "false"}">${escapeHtml(item.name)} ${escapeHtml(item.quantity)}${escapeHtml(item.unit)}</button>`;
+          }).join("") : `<span class="muted">暂无可用食材，将按当前时节推荐。</span>`}
         </div>
         <div class="menu-preferences">
           <label class="preference-field">
             <span>口味偏好</span>
             <input type="text" data-action="menu-preference" placeholder="例如：清淡、少油、不吃辣" value="${escapeHtml(menuPreferences.taste)}" ${menuStatus === "loading" ? "disabled" : ""}>
           </label>
-          <div class="symptom-options" aria-label="身体备注">
+          <label class="preference-field">
+            <span>不适症状</span>
+            <input type="text" data-action="menu-other-discomfort" placeholder="不适症状" value="${escapeHtml(menuPreferences.otherDiscomfort)}" ${menuStatus === "loading" ? "disabled" : ""}>
+          </label>
+          <div class="symptom-options" aria-label="不适症状">
             <label><input type="checkbox" data-action="menu-symptom" data-symptom="soreThroat" ${menuPreferences.symptoms.soreThroat ? "checked" : ""} ${menuStatus === "loading" ? "disabled" : ""}> 喉咙痛</label>
             <label><input type="checkbox" data-action="menu-symptom" data-symptom="cough" ${menuPreferences.symptoms.cough ? "checked" : ""} ${menuStatus === "loading" ? "disabled" : ""}> 咳嗽</label>
             <label><input type="checkbox" data-action="menu-symptom" data-symptom="fever" ${menuPreferences.symptoms.fever ? "checked" : ""} ${menuStatus === "loading" ? "disabled" : ""}> 发烧</label>
           </div>
-          <label class="preference-field">
-            <span>其他不适</span>
-            <input type="text" data-action="menu-other-discomfort" placeholder="其他不适" value="${escapeHtml(menuPreferences.otherDiscomfort)}" ${menuStatus === "loading" ? "disabled" : ""}>
-          </label>
         </div>
-        <p class="note">开发环境通过本地开发代理请求；线上优先使用 Supabase 安全代理。</p>
+        <p class="note">已选择 ${selectedIngredients.length} 种食材。开发环境通过本地开发代理请求；线上优先使用 Supabase 安全代理。</p>
         <button class="btn menu-action" data-action="recommend-menu" ${menuStatus === "loading" ? "disabled" : ""}>${menuStatus === "loading" ? "推荐中..." : "AI智能菜单推荐"}</button>
         ${menuStatus && menuStatus !== "loading" ? `<p class="note">${escapeHtml(menuStatus)}</p>` : ""}
       </section>
@@ -648,6 +670,13 @@
     const combo = menuResult.healthyCombo || {};
     return `
       <section class="section">
+        <div class="section-head"><h2>健康搭配</h2></div>
+        <article class="panel">
+          <p class="item-title">${(combo.dishes || []).map(escapeHtml).join(" + ") || "暂无搭配"}</p>
+          <p class="note">${escapeHtml(combo.reason || "AI 暂未返回搭配理由。")}</p>
+        </article>
+      </section>
+      <section class="section">
         <div class="section-head"><h2>可做菜品</h2></div>
         <div class="card-list">
           ${dishes.length ? dishes.map((dish, index) => {
@@ -662,16 +691,12 @@
                 <button class="btn icon ${alreadyAdded ? "ghost" : "secondary"}" title="${alreadyAdded ? "已加入今日菜单" : "加入今日菜单"}" data-action="add-today-menu" data-index="${index}" ${alreadyAdded ? "disabled" : ""}>+</button>
               </div>
               ${dish.notes ? `<p class="note">${escapeHtml(dish.notes)}</p>` : ""}
+              <div class="actions">
+                <button class="btn ghost" data-action="add-dish-shopping" data-index="${index}">加入采购清单</button>
+              </div>
             </article>
           `; }).join("") : `<div class="empty">AI 暂未返回可做菜品。</div>`}
         </div>
-      </section>
-      <section class="section">
-        <div class="section-head"><h2>健康搭配</h2></div>
-        <article class="panel">
-          <p class="item-title">${(combo.dishes || []).map(escapeHtml).join(" + ") || "暂无搭配"}</p>
-          <p class="note">${escapeHtml(combo.reason || "AI 暂未返回搭配理由。")}</p>
-        </article>
       </section>
     `;
   }
@@ -1033,6 +1058,19 @@
     renderApp();
   }
 
+  function addDishIngredientsToShoppingList(index) {
+    const dishes = Array.isArray(menuResult?.dishes) ? menuResult.dishes : [];
+    const dish = dishes[Number(index)];
+    const nextShoppingList = new Set(state.shoppingList);
+    (Array.isArray(dish?.ingredients) ? dish.ingredients : [])
+      .map((name) => String(name || "").trim())
+      .filter(Boolean)
+      .forEach((name) => nextShoppingList.add(name));
+    state.shoppingList = Array.from(nextShoppingList);
+    saveState();
+    renderApp();
+  }
+
   function removeTodayMenuDish(index) {
     state.todayMenu.splice(Number(index), 1);
     saveState();
@@ -1076,22 +1114,21 @@
   }
 
   async function requestMenuRecommendations() {
-    const ingredients = getEligibleKitchenIngredients(state.fridge);
+    const ingredients = getSelectedMenuIngredients(getEligibleKitchenIngredients(state.fridge));
     menuResult = null;
-    if (!ingredients.length) {
-      menuStatus = "厨房管理中暂无未过期食材。";
-      renderApp();
-      return;
-    }
     menuStatus = "loading";
     renderApp();
     try {
       menuResult = await requestMenuViaDevServer(ingredients);
-      menuStatus = `已通过本地开发代理，根据 ${ingredients.length} 种食材生成推荐。`;
+      menuStatus = ingredients.length
+        ? `已通过本地开发代理，根据 ${ingredients.length} 种食材生成推荐。`
+        : "没有选择食材，已按时节和备注生成推荐。";
     } catch (error) {
       try {
         menuResult = await requestMenuViaSupabase(ingredients);
-        menuStatus = `已通过 Supabase 安全代理，根据 ${ingredients.length} 种食材生成推荐。`;
+        menuStatus = ingredients.length
+          ? `已通过 Supabase 安全代理，根据 ${ingredients.length} 种食材生成推荐。`
+          : "没有选择食材，已按时节和备注生成推荐。";
       } catch (fallbackError) {
         menuStatus = `AI菜单服务暂不可用：${fallbackError.message || error.message || "请稍后再试"}`;
         menuResult = null;
@@ -1204,7 +1241,9 @@
     if (action === "close-drawer") closeDrawer();
     if (action === "close-reminder-toast") target.closest(".reminder-toast")?.remove();
     if (action === "recommend-menu") requestMenuRecommendations();
+    if (action === "toggle-menu-ingredient") toggleMenuIngredient(target.dataset.name);
     if (action === "add-today-menu") addTodayMenuDish(target.dataset.index);
+    if (action === "add-dish-shopping") addDishIngredientsToShoppingList(target.dataset.index);
     if (action === "open-today-menu") openTodayMenuDrawer();
     if (action === "remove-today-menu") removeTodayMenuDish(target.dataset.index);
     if (action === "decrement") decrement(target.dataset.kind, target.dataset.id);

@@ -34,6 +34,15 @@ assert(
 );
 
 assert(
+  source.includes("getSeasonName") &&
+    source.includes("当前时节") &&
+    source.includes("当厨房材料为空时") &&
+    source.includes("根据当前时节、用户口味偏好和不适症状推荐") &&
+    source.includes("buildArkMenuPayload(body.ingredients || [], body.preferences, new Date())"),
+  "dev server should support seasonal recommendation prompts when no ingredients are selected"
+);
+
+assert(
   gitignore.includes(".env.local"),
   ".env.local should be ignored so local API tokens do not enter git"
 );

@@ -68,8 +68,18 @@ function cleanMenuPreferences(value: MenuPreferences | undefined) {
   };
 }
 
-function buildArkPayload(ingredients: ReturnType<typeof cleanIngredients>, preferences?: MenuPreferences) {
+function getSeasonName(date = new Date()) {
+  const month = date.getMonth() + 1;
+  if (month >= 3 && month <= 5) return "春季";
+  if (month >= 6 && month <= 8) return "夏季";
+  if (month >= 9 && month <= 11) return "秋季";
+  return "冬季";
+}
+
+function buildArkPayload(ingredients: ReturnType<typeof cleanIngredients>, preferences?: MenuPreferences, now = new Date()) {
   const cleanPreferences = cleanMenuPreferences(preferences);
+  const seasonName = getSeasonName(now);
+  const hasIngredients = ingredients.length > 0;
   return {
     model: "glm-5-2-260617",
     messages: [
@@ -77,13 +87,17 @@ function buildArkPayload(ingredients: ReturnType<typeof cleanIngredients>, prefe
         role: "user",
         content: [
           "你是家庭厨房菜单推荐助手。",
-          "请仅使用我提供的厨房材料推荐菜品，不要引入任何未列出的主料或配菜。",
+          hasIngredients
+            ? "请仅使用我提供的厨房材料推荐菜品，不要引入任何未列出的主料或配菜。"
+            : "当厨房材料为空时，请根据当前时节、用户口味偏好和不适症状推荐适合采购后制作的菜品。",
           "调味品默认仅允许使用盐、糖、酱油、醋、食用油、葱姜蒜、胡椒。",
           "用户备注可能包含口味偏好和喉咙痛、咳嗽、发烧等身体不适；请据此选择更清淡、温和、少刺激的菜色，但不要给出医疗诊断或治疗承诺。",
           "请尽量给出多的菜品，返回 5-20 个可以制作的菜。",
           "同时返回一组推荐的健康菜品搭配，包含 2-3 个菜，并给出健康搭配理由。",
+          "当没有厨房材料时，dish.ingredients 必须填写该菜建议加入采购清单的主要材料。",
           "请返回严格 JSON，不要使用 Markdown。",
           "JSON 结构为：{\"dishes\":[{\"name\":\"菜名\",\"ingredients\":[\"材料\"],\"notes\":\"简短做法或提示\"}],\"healthyCombo\":{\"dishes\":[\"菜名\"],\"reason\":\"理由\"}}。",
+          `当前时节：${seasonName}`,
           `厨房材料：${JSON.stringify(ingredients)}`,
           `不适症状：${cleanPreferences.discomfortSymptoms || "无"}`,
           `用户备注：${JSON.stringify(cleanPreferences)}`,
@@ -116,9 +130,6 @@ Deno.serve(async (request) => {
   }
 
   const ingredients = cleanIngredients(body.ingredients);
-  if (!ingredients.length) {
-    return jsonResponse({ error: "No eligible ingredients provided" }, 400);
-  }
 
   const arkResponse = await fetch("https://ark.cn-beijing.volces.com/api/v3/chat/completions", {
     method: "POST",
@@ -126,7 +137,7 @@ Deno.serve(async (request) => {
       Authorization: `Bearer ${arkApiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(buildArkPayload(ingredients, body.preferences)),
+    body: JSON.stringify(buildArkPayload(ingredients, body.preferences, new Date())),
   });
 
   const arkText = await arkResponse.text();

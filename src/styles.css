@@ -176,7 +176,8 @@ h3 {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 128px));
+  justify-content: start;
   gap: 8px;
   margin-top: 16px;
 }
@@ -553,6 +554,20 @@ label {
   margin: 12px 0;
 }
 
+.ingredient-chip {
+  min-height: 30px;
+  padding: 4px 9px;
+  font-size: 14px;
+  line-height: 1.2;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.ingredient-chip.selected {
+  border-color: rgba(47, 125, 104, 0.34);
+  background: var(--green-soft);
+  color: var(--green);
+}
+
 .menu-preferences {
   display: grid;
   gap: 10px;
@@ -703,7 +718,8 @@ label {
 
 @media (max-width: 380px) {
   .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .two-col {
